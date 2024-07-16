@@ -91,6 +91,8 @@ const createProject = async (projectName) => {
 
     // Install dependencies
     try {
+        await createEnv();
+        
         const { stdout, stderr } = await exec('composer install');
         console.log('[output]:', stdout);
         console.log('[warning]:', chalk.yellow(stderr));
@@ -158,17 +160,19 @@ async function createEnv(){
         rl.output.write(line + '\n');
     });
 
-    try{
-        await new Promise((resolve) => rl.on('close', resolve));
-
-        console.log(chalk.greenBright("env Created!"));
-    }catch(error){
-        console.log(error);
-    }
+    await new Promise((resolve) => rl.on('close', resolve));
 }
 
 async function handleEnvCommands(command,input){
-    if(command == "make") await createEnv();
+    if(command == "make") {
+        try{
+            await createEnv();
+    
+            console.log(chalk.greenBright("env Created!"));
+        }catch(error){
+            console.log(error);
+        }
+    }
 }
 
 module.exports = {
