@@ -1,5 +1,8 @@
 const chalk = require('chalk');
 const fs = require('fs');
+const fsExtra = require('fs-extra');
+const axios = require('axios');
+const unzipper = require('unzipper');
 const util = require('node:util');
 const path = require('path');
 const { spawn } = require('child_process');
@@ -16,39 +19,48 @@ async function initializeProject(projectName, input) {
         color: "green"
     }).start();
 
-    try{
+    try {
         await createProject(projectName);
-    }catch(error){
+    } catch (error) {
         spinner.stop();
         console.log(error);
         process.exit(1);
     }
-    
+
     spinner.stop();
     console.log(`\n${chalk.green('Project initialized')}.\n\nRun \ncd ${projectName} \n\nthen \nmo-ask run to start the project`);
 }
 
 // Function to copy a file
-const copyFile = (src, dest) => {
-    fs.copyFileSync(src, dest);
+const copyFiles = async (src, dest) => {
+    await fsExtra.copy(src, dest);
 };
 
-// Function to copy a directory recursively
-const copyDirectory = (src, dest) => {
-    if (!fs.existsSync(dest)) {
-        fs.mkdirSync(dest);
-    }
-    const entries = fs.readdirSync(src, { withFileTypes: true });
-    entries.forEach(entry => {
-        const srcPath = path.join(src, entry.name);
-        const destPath = path.join(dest, entry.name);
+const downloadRepo = async () => {
+    const url = 'https://github.com/NisalaDulanaka/Motions-PHP/archive/refs/heads/main.zip'; // Replace with your GitHub repository URL
+    const outputPath = path.resolve(__dirname, 'repo.zip');
 
-        if (entry.isDirectory()) {
-            copyDirectory(srcPath, destPath);
-        } else {
-            copyFile(srcPath, destPath);
-        }
+    const response = await axios({
+        url,
+        method: 'GET',
+        responseType: 'stream'
     });
+
+    response.data.pipe(fs.createWriteStream(outputPath));
+
+    return new Promise((resolve, reject) => {
+        response.data.on('end', () => {
+            resolve(outputPath);
+        });
+
+        response.data.on('error', reject);
+    });
+};
+
+const extractZip = async (zipPath, extractTo) => {
+    await fs.createReadStream(zipPath)
+        .pipe(unzipper.Extract({ path: extractTo }))
+        .promise();
 };
 
 // Function to create a new project
@@ -60,7 +72,18 @@ const createProject = async (projectName) => {
         throw new Error(`Directory ${projectName} already exists.`);
     }
 
-    copyDirectory(templateDir, projectDir);
+    //download the repo
+    const zipPath = await downloadRepo();
+
+    const extractTo = path.resolve(__dirname, 'temp'); // Temporary folder for extraction
+    await extractZip(zipPath, extractTo);
+
+    const src = path.resolve(extractTo, 'Motions-PHP-main'); // Adjust this path based on the repository structure
+    await copyFiles(src, projectDir);
+
+    // Clean up
+    fsExtra.removeSync(zipPath);
+    fsExtra.removeSync(extractTo);
 
     // Change directory to the new project
     process.chdir(projectDir);
@@ -75,8 +98,8 @@ const createProject = async (projectName) => {
     }
 };
 
-async function runProject(){
-    const {executionProcess, host} = createProjectExecutionProcess();
+async function runProject() {
+    const { executionProcess, host } = createProjectExecutionProcess();
 
     process.stdin.resume();
     process.stdin.setEncoding('utf-8');
@@ -89,9 +112,9 @@ async function runProject(){
     process.stdin.destroy();
 }
 
-function createProjectExecutionProcess(){
+function createProjectExecutionProcess() {
     const host = 'localhost:3000';
-    const process = spawn('php',['-S', host]);
+    const process = spawn('php', ['-S', host]);
     let firstOutPut = true;
 
     process.stdout.on('data', (data) => {
@@ -99,17 +122,17 @@ function createProjectExecutionProcess(){
     });
 
     process.stderr.on('data', (data) => {
-        if(firstOutPut){ firstOutPut = false; return; }
+        if (firstOutPut) { firstOutPut = false; return; }
 
         console.log(chalk.green(data));
     });
 
     process.on('close', (code) => {
-        console.log(`Server stopped${code? ' with the status ' + code: ''}`);
+        console.log(`Server stopped${code ? ' with the status ' + code : ''}`);
     });
 
     return {
-        executionProcess : process,
+        executionProcess: process,
         host
     };
 }
