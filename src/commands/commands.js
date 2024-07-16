@@ -6,7 +6,8 @@ const commands = {
     "controller": controllerCommand,
     "middleware": middlewareCommand,
     "init": projectCommands.initializeProject,
-    "run": projectCommands.runProject
+    "run": projectCommands.runProject,
+    "env": projectCommands.handleEnvCommands
 };
 
 function executeCommand(cmdType, cmd, cmdInputs){

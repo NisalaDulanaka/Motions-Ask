@@ -1,5 +1,6 @@
 const chalk = require('chalk');
 const fs = require('fs');
+const readline = require('readline');
 const fsExtra = require('fs-extra');
 const axios = require('axios');
 const unzipper = require('unzipper');
@@ -137,7 +138,41 @@ function createProjectExecutionProcess() {
     };
 }
 
+// Function to create the .env file
+async function createEnv(){
+    const examplePath = ".env.example";
+    const outPath = ".env";
+
+    if(fs.existsSync(outPath)){
+        console.log(chalk.red("The .env file already exists, please delete it and try again."));
+        return;
+    }
+
+    const rl = readline.createInterface({
+        input: fsExtra.createReadStream(examplePath),
+        output: fsExtra.createWriteStream(outPath),
+        terminal: false
+    });
+
+    rl.on('line', (line) => {
+        rl.output.write(line + '\n');
+    });
+
+    try{
+        await new Promise((resolve) => rl.on('close', resolve));
+
+        console.log(chalk.greenBright("env Created!"));
+    }catch(error){
+        console.log(error);
+    }
+}
+
+async function handleEnvCommands(command,input){
+    if(command == "make") await createEnv();
+}
+
 module.exports = {
     initializeProject,
-    runProject
+    runProject,
+    handleEnvCommands
 }
